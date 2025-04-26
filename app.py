@@ -1,42 +1,17 @@
 from flask import Flask, render_template, request, jsonify
 import numpy as np
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
 import joblib
 import os
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'  # Create a folder for uploaded files
 
-# Create uploads folder if it doesn't exist
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
-
-# Load data and train model
+# Load pre-trained model and scaler
 try:
-    # Load data
-    df = pd.read_csv('heart_disease.csv')
-    
-    # Feature and target selection
-    X = df[['age', 'cp', 'thalach']]
-    y = df['target']
-    
-    # Split the data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Scale the features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    
-    # Train model
-    model = LogisticRegression(random_state=42)
-    model.fit(X_train_scaled, y_train)
-    
-    print("Model trained successfully!")
+    model = joblib.load('model.pkl')
+    scaler = joblib.load('scaler.pkl')
+    print("Model and scaler loaded successfully!")
 except Exception as e:
-    print(f"Error loading data or training model: {e}")
+    print(f"Error loading model and scaler: {e}")
     model = None
     scaler = None
 
@@ -48,7 +23,7 @@ def home():
 def predict():
     try:
         if model is None or scaler is None:
-            return jsonify({'error': 'Model not trained. Please check the data file.'})
+            return jsonify({'error': 'Model not loaded. Please check if model files exist.'})
             
         # Get values from the form
         age = float(request.form['age'])
@@ -102,35 +77,6 @@ def predict():
             'success': False
         })
 
-@app.route('/upload', methods=['GET', 'POST'])
-def upload_file():
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file part'})
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No selected file'})
-        
-        if file and file.filename.endswith('.csv'):
-            # Save the file
-            filename = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(filename)
-            
-            # Read and return the first few rows of the CSV
-            try:
-                df = pd.read_csv(filename)
-                preview = df.head().to_dict('records')
-                return jsonify({
-                    'message': 'File uploaded successfully',
-                    'preview': preview
-                })
-            except Exception as e:
-                return jsonify({'error': f'Error reading CSV: {str(e)}'})
-        
-        return jsonify({'error': 'Please upload a CSV file'})
-    
-    return render_template('upload.html')
-
 if __name__ == '__main__':
-    app.run(debug=True) 
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port) 
